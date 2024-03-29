@@ -1365,7 +1365,7 @@ def experiment_subject_portinight(index, dataset_path):
             all_subjects = f.readlines()
         all_subjects = [x.strip() for x in all_subjects]
         # Get 100 permutations of 3 subjects
-        permutations = [random.choices(all_subjects, k=3) for _ in range(100)]
+        permutations = [random.sample(all_subjects, k=3) for _ in range(100)]
         subjects = permutations[index]
 
     return subjects
