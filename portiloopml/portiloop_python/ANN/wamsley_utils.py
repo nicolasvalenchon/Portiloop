@@ -447,11 +447,12 @@ def RMS_score(candidate, Fs=250, lowcut=11, highcut=16):
     a = 1.0
     taps = firwin(ntaps, [lowcut, highcut], nyq=nyq,
                   pass_zero=False, window=('kaiser', beta), scale=False)
-    filtered_signal = filtfilt(taps, a, candidate)
+    filtered_signal = torch.tensor(filtfilt(taps, a, candidate).copy())
+    
 
     # Get the baseline and the detection window for the RMS
     detect_index = len(candidate) // 2
-    size_window = 0.5 * Fs
+    size_window = int(0.5 * Fs)
     baseline_idx = -2 * Fs  # Index compared to the detection window
     baseline = filtered_signal[detect_index +
                                baseline_idx:detect_index + baseline_idx + size_window]

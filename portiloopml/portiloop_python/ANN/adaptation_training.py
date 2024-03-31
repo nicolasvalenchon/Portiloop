@@ -19,7 +19,7 @@ from portiloopml.portiloop_python.ANN.data.mass_data_new import (
     MassConsecutiveSampler, MassDataset)
 from portiloopml.portiloop_python.ANN.utils import set_seeds
 from portiloopml.portiloop_python.ANN.validation_mass import load_model_mass
-from portiloopml.portiloop_python.ANN.wamsley_utils import (binary_f1_score,
+from portiloopml.portiloop_python.ANN.wamsley_utils import (RMS_score, binary_f1_score,
                                                             detect_lacourse,
                                                             get_spindle_onsets)
 
@@ -594,9 +594,8 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
             window_labels = labels['spindle_label'].to(device)
 
             # Get the output of the network
-            if index == 0:
-                spindle_output, ss_output, h1, _ = net_inference(
-                    window_data, h1)
+            spindle_output, ss_output, h1, _ = net_inference(
+                window_data, h1)
 
             # Compute the loss
             output = spindle_output.squeeze(-1)
@@ -799,6 +798,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
     spindle_metrics_real = spindle_metrics(
         spindle_labels,
         spindle_preds_real,
+        data=adap_dataset.wamsley_buffer,
         ss_labels=adap_dataset.ss_label_buffer if config['use_ss_label'] else adap_dataset.ss_pred_buffer,
         threshold=0.5,
         sampling_rate=250,
@@ -1025,7 +1025,7 @@ def average_weights(modelA, modelB, alpha=0.5):
     return new_model
 
 
-def spindle_metrics(labels, preds, ss_labels=None, threshold=0.5, sampling_rate=250, min_label_time=0.5):
+def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sampling_rate=250, min_label_time=0.5):
     assert len(labels) == len(
         preds), "Labels and predictions are not the same length"
 
@@ -1038,6 +1038,7 @@ def spindle_metrics(labels, preds, ss_labels=None, threshold=0.5, sampling_rate=
     # Compute the metrics
     precision, recall, f1, tp, fp, fn, closest = binary_f1_score(
         onsets_labels, onsets_preds, sampling_rate=sampling_rate, min_time_positive=min_label_time)
+    
     metrics = {
         'precision': precision,
         'recall': recall,
@@ -1046,6 +1047,19 @@ def spindle_metrics(labels, preds, ss_labels=None, threshold=0.5, sampling_rate=
         'fp': fp,
         'fn': fn,
     }
+    if data is not None:
+        # Compute the average RMs score for all the spindles
+        rms_scores = []
+        for spindle in onsets_preds:
+            if spindle < 3750 or spindle > len(data) - 3750:
+                continue
+            spindle_data = torch.tensor(data[spindle-3750:spindle+3750])
+            rms_scores.append(RMS_score(spindle_data))
+        rms_scores = np.array(rms_scores)
+        rms_scores = rms_scores[~np.isnan(rms_scores)]
+        rms_score = np.mean(rms_scores)
+        metrics['rms_score'] = rms_score
+        metrics['rms_scores'] = rms_scores
 
     # Remove all spindles that are in wrong sleep stages
     if ss_labels is not None:
@@ -1206,7 +1220,7 @@ def dataloader_from_subject(subject, dataset_path, config, val):
             dataset,
             seq_stride=config['seq_stride'],
             segment_len=(len(dataset) // config['seq_stride']) - 1,
-            # segment_len=100,
+            # segment_len=10000,
             max_batch_size=1,
             random=False,
         )
@@ -1248,7 +1262,7 @@ def get_config_portinight(index, net):
         'hidden_size': net.config['hidden_size'],
         'nb_rnn_layers': net.config['nb_rnn_layers'],
         # Whether to use the adaptable threshold in the detection of spindles with NN Model
-        'adapt_threshold_detect': True if index in [1, 3] else False,
+        'adapt_threshold_detect': True if index in [1, 3, 4, 5] else False,
         # Whether to use the adaptable threshold in the detection of spindles with Wamsley online
         'adapt_threshold_wamsley': True,
         # Decides if we finetune from the ground truth (if false) or from our online Wamsley (if True)
