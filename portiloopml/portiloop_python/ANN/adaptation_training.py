@@ -745,8 +745,6 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         sampling_rate=250,
         min_label_time=0.5)
 
-    logger.summary['online_lacourse_metrics'] = online_lacourse_metrics
-
     print(f"Online Lacourse got: {online_lacourse_metrics['f1']}")
 
     if config['end_of_night']:
@@ -764,8 +762,6 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
 
         print(
             f"End of night Lacourse got: {endofnight_lacourse_metrics['f1']}")
-
-        logger.summary['endofnight_lacourse_metrics'] = endofnight_lacourse_metrics
 
         net_inference = train_adaptation(
             config,
@@ -788,8 +784,6 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         ss_labels,
         ss_preds)
 
-    logger.summary['ss_metrics'] = ss_metrics[0]
-
     # Compute the real_life metrics for spindle detection
     spindle_preds_real = torch.tensor(
         adap_dataset.prediction_buffer).type(torch.LongTensor)
@@ -803,8 +797,6 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         threshold=0.5,
         sampling_rate=250,
         min_label_time=0.5)
-
-    logger.summary['spindle_metrics_real'] = spindle_metrics_real
 
     # Compute the real_life metrics for spindle detection compared to online Lacourse
     spindle_preds_real = torch.tensor(
