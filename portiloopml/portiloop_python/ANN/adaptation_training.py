@@ -19,7 +19,7 @@ from portiloopml.portiloop_python.ANN.data.mass_data_new import (
     MassConsecutiveSampler, MassDataset)
 from portiloopml.portiloop_python.ANN.utils import set_seeds
 from portiloopml.portiloop_python.ANN.validation_mass import load_model_mass
-from portiloopml.portiloop_python.ANN.wamsley_utils import (RMS_score, binary_f1_score,
+from portiloopml.portiloop_python.ANN.wamsley_utils import (RMS_score_all, binary_f1_score,
                                                             detect_lacourse,
                                                             get_spindle_onsets)
 
@@ -1049,12 +1049,10 @@ def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sam
     }
     if data is not None:
         # Compute the average RMs score for all the spindles
-        rms_scores = []
-        for spindle in onsets_preds:
-            if spindle < 3750 or spindle > len(data) - 3750:
-                continue
-            spindle_data = torch.tensor(data[spindle-3750:spindle+3750])
-            rms_scores.append(RMS_score(spindle_data))
+        print(f"We have {len(onsets_preds)} spindles")
+        start = time.time()
+        rms_scores = RMS_score_all(data, onsets_preds)
+        print(f"RMS took {time.time() - start}")
         rms_scores = np.array(rms_scores)
         rms_scores = rms_scores[~np.isnan(rms_scores)]
         rms_score = np.mean(rms_scores)

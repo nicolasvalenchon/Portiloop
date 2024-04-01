@@ -435,8 +435,37 @@ def smooth(data, dur, s_freq):
     return data
 
 
-def RMS_score(candidate, Fs=250, lowcut=11, highcut=16):
+# def RMS_score(candidate, Fs=250, lowcut=11, highcut=16):
 
+#     # Filter the signal
+#     stopbbanAtt = 60  # stopband attenuation of 60 dB.
+#     width = .5  # This sets the cutoff width in Hertz
+#     nyq = 0.5 * Fs
+#     ntaps, _ = kaiserord(stopbbanAtt, width/nyq)
+#     atten = kaiser_atten(ntaps, width/nyq)
+#     beta = kaiser_beta(atten)
+#     a = 1.0
+#     taps = firwin(ntaps, [lowcut, highcut], nyq=nyq,
+#                   pass_zero=False, window=('kaiser', beta), scale=False)
+#     filtered_signal = torch.tensor(filtfilt(taps, a, candidate).copy())
+    
+
+#     # Get the baseline and the detection window for the RMS
+#     detect_index = len(candidate) // 2
+#     size_window = int(0.5 * Fs)
+#     baseline_idx = -2 * Fs  # Index compared to the detection window
+#     baseline = filtered_signal[detect_index +
+#                                baseline_idx:detect_index + baseline_idx + size_window]
+#     detection = filtered_signal[detect_index:detect_index + size_window]
+
+#     # Calculate the RMS
+#     baseline_rms = torch.sqrt(torch.mean(torch.square(baseline)))
+#     detection_rms = torch.sqrt(torch.mean(torch.square(detection)))
+
+#     score = detection_rms / baseline_rms
+#     return score
+
+def filter_signal_for_RMS(signal, Fs=250, lowcut=11, highcut=16):
     # Filter the signal
     stopbbanAtt = 60  # stopband attenuation of 60 dB.
     width = .5  # This sets the cutoff width in Hertz
@@ -447,11 +476,12 @@ def RMS_score(candidate, Fs=250, lowcut=11, highcut=16):
     a = 1.0
     taps = firwin(ntaps, [lowcut, highcut], nyq=nyq,
                   pass_zero=False, window=('kaiser', beta), scale=False)
-    filtered_signal = torch.tensor(filtfilt(taps, a, candidate).copy())
-    
+    filtered_signal = torch.tensor(filtfilt(taps, a, signal).copy())
+    return filtered_signal
 
+def get_RMS_score(filtered_signal, index, Fs=250):
     # Get the baseline and the detection window for the RMS
-    detect_index = len(candidate) // 2
+    detect_index = index
     size_window = int(0.5 * Fs)
     baseline_idx = -2 * Fs  # Index compared to the detection window
     baseline = filtered_signal[detect_index +
@@ -464,3 +494,11 @@ def RMS_score(candidate, Fs=250, lowcut=11, highcut=16):
 
     score = detection_rms / baseline_rms
     return score
+
+def RMS_score_all(signal, indexes):
+    filtered_signal = filter_signal_for_RMS(signal)
+    scores = []
+    for index in indexes:
+        score = get_RMS_score(filtered_signal, index)
+        scores.append(score)
+    return scores
