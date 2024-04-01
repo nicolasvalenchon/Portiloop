@@ -1050,17 +1050,18 @@ def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sam
         'fp': fp,
         'fn': fn,
     }
-    if data is not None:
-        # Compute the average RMs score for all the spindles
-        print(f"We have {len(onsets_preds)} spindles")
-        start = time.time()
-        rms_scores = RMS_score_all(data, onsets_preds)
-        print(f"RMS took {time.time() - start}")
-        rms_scores = np.array(rms_scores)
-        rms_scores = rms_scores[~np.isnan(rms_scores)]
-        rms_score = np.mean(rms_scores)
-        metrics['rms_score'] = rms_score
-        metrics['rms_scores'] = rms_scores
+
+    # if data is not None:
+    #     # Compute the average RMs score for all the spindles
+    #     print(f"We have {len(onsets_preds)} spindles")
+    #     start = time.time()
+    #     rms_scores = RMS_score_all(data, onsets_preds)
+    #     print(f"RMS took {time.time() - start}")
+    #     rms_scores = np.array(rms_scores)
+    #     rms_scores = rms_scores[~np.isnan(rms_scores)]
+    #     rms_score = np.mean(rms_scores)
+    #     metrics['rms_score'] = rms_score
+    #     metrics['rms_scores'] = rms_scores
 
     # Remove all spindles that are in wrong sleep stages
     if ss_labels is not None:
@@ -1220,8 +1221,8 @@ def dataloader_from_subject(subject, dataset_path, config, val):
         sampler = MassConsecutiveSampler(
             dataset,
             seq_stride=config['seq_stride'],
-            segment_len=(len(dataset) // config['seq_stride']) - 1,
-            # segment_len=10000,
+            # segment_len=(len(dataset) // config['seq_stride']) - 1,
+            segment_len=10000,
             max_batch_size=1,
             random=False,
         )
@@ -1527,7 +1528,7 @@ def parse_config():
                         help='Path to the dataset')
     parser.add_argument('--experiment_name', type=str,
                         default=None, help='Name of the model')
-    parser.add_argument('--seed', type=int, default=-1,
+    parser.add_argument('--seed', type=int, default=40,
                         help='Seed for the experiment')
     parser.add_argument('--worker_id', type=int, default=0,
                         help='Id of the worker')
