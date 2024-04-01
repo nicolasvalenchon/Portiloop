@@ -778,6 +778,8 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
             epochs=1
         )
 
+    print(f"BFORE SS METRICS")
+
     # Sleep staging metrics:
     ss_preds = adap_dataset.ss_pred_buffer
     ss_labels = adap_dataset.ss_label_buffer
@@ -786,6 +788,10 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
     ss_metrics = staging_metrics(
         ss_labels,
         ss_preds)
+    
+    print(f"AFTER SS METRICS")
+
+    print("BEFORE SPINDLE METRICS")
 
     # Compute the real_life metrics for spindle detection
     spindle_preds_real = torch.tensor(
@@ -813,6 +819,8 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         threshold=0.5,
         sampling_rate=250,
         min_label_time=0.5)
+    
+    print("AFTER SPINDLE METRICS")
 
     all_metrics = {
         # Metrics of the sleep staging
