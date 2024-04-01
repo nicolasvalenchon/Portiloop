@@ -1423,6 +1423,8 @@ def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_
                 config['train'],
                 logger=run)
 
+            print("OUT OF RUN ADAPT")
+
             results[subject_id][config['experiment_name']] = {
                 'config': copy.deepcopy(config),
                 'metrics': metrics
@@ -1432,9 +1434,13 @@ def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_
             with open(f'results_{exp_name_val}.json', 'w') as f:
                 json.dump(results, f, indent=4, cls=NumpyEncoder)
 
+            print(f"SAVED FILE")
+
             # Save the results to wandb as well
             run.save(f'results_{exp_name_val}.json')
             run.finish()
+
+            print(f"FINISHED RUN")
 
     # Save the results to json file with indentation
     with open(f'experiment_result_worker{worker_id}.json', 'w') as f:
