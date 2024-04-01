@@ -2,6 +2,7 @@ import copy
 import numpy as np
 from scipy.signal import fftconvolve, filtfilt, firwin, kaiserord, kaiser_atten, kaiser_beta
 import torch
+from tqdm import tqdm
 from wonambi.detect.spindle import DetectSpindle, detect_Lacourse2018
 import matplotlib.pyplot as plt
 
@@ -81,7 +82,7 @@ def binary_f1_score(baseline_index, model_index, sampling_rate=250, min_time_pos
     if len(baseline_index) == 0 or len(model_index) == 0:
         return 0, 0, 0, tp, fp, fn, closest
 
-    for index in baseline_index:
+    for index in tqdm(baseline_index):
         # How many in model are within a threshold distance of the baseline
         similarity = len(np.where(np.abs(model_index - index) < threshold)[0])
         closest.append(np.min(np.abs(model_index - index)))

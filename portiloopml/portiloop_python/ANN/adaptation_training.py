@@ -732,8 +732,11 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
                 logger,
                 used_threshold,
                 index)
+
+    print('BEFORE SPINDLE DETECT END')
     # Run one last time the online spindle detection
     adap_dataset.run_spindle_detection(adap_dataset.last_wamsley_run)
+    print('AFTER SPINDLE DETECTION')
 
     # Compute the metrics for the online Lacourse
     true_labels = torch.tensor(adap_dataset.spindle_labels)
