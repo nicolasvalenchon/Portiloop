@@ -1054,11 +1054,8 @@ def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sam
     if data is not None:
         # Compute the average RMs score for all the spindles
         print(f"We have {len(onsets_preds)} spindles")
-        start = time.time()
         rms_scores = RMS_score_all(data, onsets_preds)
-        print(f"RMS took {time.time() - start}")
         rms_scores = np.array(rms_scores)
-        rms_scores = rms_scores[~np.isnan(rms_scores)]
         rms_score = np.mean(rms_scores)
         metrics['rms_score'] = rms_score
         metrics['rms_scores'] = rms_scores
