@@ -449,7 +449,7 @@ def smooth(data, dur, s_freq):
 #     taps = firwin(ntaps, [lowcut, highcut], nyq=nyq,
 #                   pass_zero=False, window=('kaiser', beta), scale=False)
 #     filtered_signal = torch.tensor(filtfilt(taps, a, candidate).copy())
-    
+
 
 #     # Get the baseline and the detection window for the RMS
 #     detect_index = len(candidate) // 2
@@ -466,7 +466,7 @@ def smooth(data, dur, s_freq):
 #     score = detection_rms / baseline_rms
 #     return score
 
-def filter_signal_for_RMS(signal, Fs=250, lowcut=11, highcut=16):
+def filter_signal_for_RMS(signal, filter_order=4, Fs=250, lowcut=11, highcut=16):
     # Filter the signal
     stopbbanAtt = 60  # stopband attenuation of 60 dB.
     width = .5  # This sets the cutoff width in Hertz
@@ -475,14 +475,16 @@ def filter_signal_for_RMS(signal, Fs=250, lowcut=11, highcut=16):
     atten = kaiser_atten(ntaps, width/nyq)
     beta = kaiser_beta(atten)
     a = 1.0
-    order = 4
+    order = filter_order
     # taps = firwin(ntaps, [lowcut, highcut], nyq=nyq,
     #               pass_zero=False, window=('kaiser', beta), scale=False)
 
-    sos = butter(N=order, Wn=[lowcut, highcut], btype='bandpass', fs=Fs, output='sos')
+    sos = butter(N=order, Wn=[lowcut, highcut],
+                 btype='bandpass', fs=Fs, output='sos')
 
     filtered_signal = sosfiltfilt(sos, signal)
     return filtered_signal
+
 
 def get_RMS_score(filtered_signal, index, Fs=250):
     # Get the baseline and the detection window for the RMS
@@ -500,8 +502,9 @@ def get_RMS_score(filtered_signal, index, Fs=250):
     score = detection_rms / baseline_rms
     return score
 
-def RMS_score_all(signal, indexes):
-    filtered_signal = filter_signal_for_RMS(signal)
+
+def RMS_score_all(signal, indexes, filter_order=4):
+    filtered_signal = filter_signal_for_RMS(signal, filter_order=filter_order)
     scores = []
     for index in indexes:
         score = get_RMS_score(filtered_signal, index)

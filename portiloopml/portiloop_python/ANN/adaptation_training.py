@@ -544,7 +544,7 @@ class AdaptationDataset(torch.utils.data.Dataset):
         return vector
 
 
-def run_adaptation(dataloader, val_dataloader, net, device, config, train, logger):
+def run_adaptation(dataloader, val_dataloader, net, device, config, train, logger, last_used_threshold=0.5):
     """
     Goes over the dataset and learns at every step.
     Returns the accuracy and loss as well as fp, fn, tp, tn count for spindles
@@ -570,7 +570,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
 
     inference_loss = []
     # Keep the sleep staging labels and predictions
-    used_threshold = config['starting_threshold']
+    used_threshold = last_used_threshold
     used_thresholds = [used_threshold]
     spindle_pred_with_thresh = []
 
@@ -1222,8 +1222,8 @@ def dataloader_from_subject(subject, dataset_path, config, val):
         sampler = MassConsecutiveSampler(
             dataset,
             seq_stride=config['seq_stride'],
-            # segment_len=(len(dataset) // config['seq_stride']) - 1,
-            segment_len=50000,
+            segment_len=(len(dataset) // config['seq_stride']) - 1,
+            # segment_len=50000,
             max_batch_size=1,
             random=False,
         )
@@ -1251,8 +1251,17 @@ class NumpyEncoder(json.JSONEncoder):
 
 
 def get_config_portinight(index, net):
+    experiment_names = [
+        "Baseline",
+        "AdaThresh",
+        "JustTrain",
+        "BothNoAlpha",
+        "BothAlpha",
+        "BothFreeze",
+        "AdaKeepThresh"
+    ]
     config = {
-        'experiment_name': f'config_{index}',
+        'experiment_name': experiment_names[index],
         'num_subjects': 1,
         'train': False,
         'seq_len': net.config['seq_len'],
@@ -1265,7 +1274,7 @@ def get_config_portinight(index, net):
         'hidden_size': net.config['hidden_size'],
         'nb_rnn_layers': net.config['nb_rnn_layers'],
         # Whether to use the adaptable threshold in the detection of spindles with NN Model
-        'adapt_threshold_detect': True if index in [1, 3, 4, 5] else False,
+        'adapt_threshold_detect': True if index in [1, 3, 4, 5, 6] else False,
         # Whether to use the adaptable threshold in the detection of spindles with Wamsley online
         'adapt_threshold_wamsley': True,
         # Decides if we finetune from the ground truth (if false) or from our online Wamsley (if True)
@@ -1302,7 +1311,7 @@ def get_config_portinight(index, net):
         'freeze_embeddings': True if index in [5] else False,
         'freeze_classifier': False,
         'keep_net': True if index in [2, 3, 4, 5] else False,
-        'keep_threshold': False,
+        'keep_threshold': True if index in [6] else False,
         'val': False,
         'end_of_night': True if index in [2, 3, 4, 5] else False,
     }
@@ -1398,11 +1407,32 @@ def experiments_baseline_portinight(index, dataset_path):
     return subjects
 
 
+def experiment_subjects_overfitting(index, dataset_path):
+    # Here, we want to generate a sequence of six subjects, making sure that all subjects are sampled at least once in each position
+    with open(os.path.join(dataset_path, 'subjects_portinight.txt'), 'r') as f:
+        all_subjects = f.readlines()
+
+    all_subjects = [x.strip() for x in all_subjects]
+
+    # Shuffle the subjects with a seed to make sure its always the same
+    random.seed(42)
+    random.shuffle(all_subjects)
+
+    max_index = len(all_subjects)
+
+    # Get the six subjects starting at index with a wrap around
+    indexes = [index % max_index for index in range(index, index + 6)]
+    subjects = [all_subjects[i] for i in indexes]
+
+    return subjects
+
+
 def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_name_val, worker_id, added_text=''):
     results = {}
 
     # print(f"Doing subjects: {subjects}")
     for config in all_configs:
+        last_used_threshold = config['starting_threshold']
         net_copy = None
         print(f"Running config {config['experiment_name']}")
         for index, subject_id in enumerate(subjects):
@@ -1442,7 +1472,10 @@ def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_
                 device,
                 config,
                 config['train'],
-                logger=run)
+                logger=run,
+                last_used_threshold=last_used_threshold)
+
+            last_used_threshold = metrics['threshold_metrics'][-1]
 
             print("OUT OF RUN ADAPT")
 
@@ -1542,7 +1575,7 @@ def parse_config():
                         default=None, help='Name of the model')
     parser.add_argument('--seed', type=int, default=40,
                         help='Seed for the experiment')
-    parser.add_argument('--worker_id', type=int, default=0,
+    parser.add_argument('--worker_id', type=int, default=12,
                         help='Id of the worker')
     parser.add_argument('--job_id', type=int, default=0,
                         help='Id of the job used for the output file naming scheme')
@@ -1550,8 +1583,8 @@ def parse_config():
                         help='Total number of workers used to compute which subjects to run')
     parser.add_argument('--fold', type=int, default=4,
                         help='Fold of the cross validation')
-    parser.add_argument('--mass', type=int, default=2,
-                        help='Choose whether to run the MASS experiments or the Portinight experiments. 1 for MASS, 0 for Portinight, 2 for baseline experiment')
+    parser.add_argument('--mass', type=int, default=4,
+                        help='Choose whether to run the MASS experiments or the Portinight experiments. 1 for MASS, 0 for Portinight, 2 for baseline, 4 for catastrophic forgetting')
     args = parser.parse_args()
 
     return args
@@ -1621,6 +1654,24 @@ if __name__ == "__main__":
 
         launch_experiment_portinight(
             subjects, all_configs, run_id, wandb_group_name, wandb_experiment_name, worker_id, added_text='baseline')
+
+    elif args.mass == 3:
+        # We do the sequential experiment to see if both is better than AdaThresh
+        pass
+    elif args.mass == 4:
+        # We do the overfitting experiments over six nights
+        run_id = 'both_cc_limited_ss_44055'
+        subjects = experiment_subjects_overfitting(
+            worker_id, args.dataset_path)
+        unique_id = f"{int(time.time())}"[5:]
+        net, run = load_model_mass(
+            f"Loading_subjects_{worker_id}_{unique_id}", run_id=run_id, group_name='ModelLoaders')
+        run.finish()
+        all_configs = [get_config_portinight(i, net) for i in [2, 3, 4, 5]]
+
+        launch_experiment_portinight(
+            subjects, all_configs, run_id, wandb_group_name, wandb_experiment_name, worker_id, added_text='overfitting')
+
     else:
         run_id = 'both_cc_limited_ss_44055'
         subjects = experiment_subject_portinight(worker_id, args.dataset_path)
@@ -1628,7 +1679,7 @@ if __name__ == "__main__":
         net, run = load_model_mass(
             f"Loading_subjects_{worker_id}_{unique_id}", run_id=run_id, group_name='ModelLoaders')
         run.finish()
-        all_configs = [get_config_portinight(i, net) for i in range(6)]
+        all_configs = [get_config_portinight(i, net) for i in range(7)]
 
         launch_experiment_portinight(
             subjects, all_configs, run_id, wandb_group_name, wandb_experiment_name, worker_id)
