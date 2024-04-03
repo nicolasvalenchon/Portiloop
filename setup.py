@@ -13,7 +13,7 @@ install_requires = [
     'torch',
     'wandb',
     'pyedflib',
-    'scipy==1.10.1',
+    'scipy',
     'matplotlib',
     'requests',
     'pyinstrument',

@@ -218,7 +218,6 @@ class AdaptationDataset(torch.utils.data.Dataset):
         self.num_false_negative = []
 
         # Used for tests:
-        self.used_thresholds = []
         self.candidate_thresholds = np.arange(
             config['min_threshold'], config['max_threshold'], 0.01)
         self.adapt_threshold_detect = config['adapt_threshold_detect']
@@ -572,6 +571,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
     inference_loss = []
     # Keep the sleep staging labels and predictions
     used_threshold = config['starting_threshold']
+    used_thresholds = [used_threshold]
     spindle_pred_with_thresh = []
 
     last_n_ss = deque(maxlen=config['n_ss_smoothing'])
@@ -722,6 +722,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
 
                 if config['adapt_threshold_detect']:
                     used_threshold = new_thresh
+            used_thresholds.append(used_threshold)
 
         if (out_dataset or index == 0 or index == len(dataloader) - 1) and config['val']:
             validate_adaptation(
@@ -788,7 +789,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
     ss_metrics = staging_metrics(
         ss_labels,
         ss_preds)
-    
+
     print(f"AFTER SS METRICS")
 
     print("BEFORE SPINDLE METRICS")
@@ -819,7 +820,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         threshold=0.5,
         sampling_rate=250,
         min_label_time=0.5)
-    
+
     print("AFTER SPINDLE METRICS")
 
     all_metrics = {
@@ -831,6 +832,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         'detect_spindle_metrics_ola7gt': spindle_metrics_ola7,
         # Metrics of the online wamsley spindle detection
         'online_lacourse_metrics': online_lacourse_metrics,
+        'threshold_metrics': used_thresholds,
     }
 
     return all_metrics, net_inference
@@ -1041,7 +1043,7 @@ def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sam
     # Compute the metrics
     precision, recall, f1, tp, fp, fn, closest = binary_f1_score(
         onsets_labels, onsets_preds, sampling_rate=sampling_rate, min_time_positive=min_label_time)
-    
+
     metrics = {
         'precision': precision,
         'recall': recall,
@@ -1056,7 +1058,7 @@ def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sam
         print(f"We have {len(onsets_preds)} spindles")
         rms_scores = RMS_score_all(data, onsets_preds)
         rms_scores = np.array(rms_scores)
-        # Remove the NaNs 
+        # Remove the NaNs
         rms_scores = rms_scores[~np.isnan(rms_scores)]
         rms_score = np.mean(rms_scores)
         metrics['avg_rms_score'] = rms_score
@@ -1220,8 +1222,8 @@ def dataloader_from_subject(subject, dataset_path, config, val):
         sampler = MassConsecutiveSampler(
             dataset,
             seq_stride=config['seq_stride'],
-            segment_len=(len(dataset) // config['seq_stride']) - 1,
-            # segment_len=10000,
+            # segment_len=(len(dataset) // config['seq_stride']) - 1,
+            segment_len=50000,
             max_batch_size=1,
             random=False,
         )
@@ -1300,6 +1302,7 @@ def get_config_portinight(index, net):
         'freeze_embeddings': True if index in [5] else False,
         'freeze_classifier': False,
         'keep_net': True if index in [2, 3, 4, 5] else False,
+        'keep_threshold': False,
         'val': False,
         'end_of_night': True if index in [2, 3, 4, 5] else False,
     }
@@ -1606,9 +1609,10 @@ if __name__ == "__main__":
         launch_experiment_mass(subjects, all_configs, run_id,
                                wandb_group_name, wandb_experiment_name, fold, worker_id)
     elif args.mass == 2:
-        # We do the baseline portinight experiments: 
+        # We do the baseline portinight experiments:
         run_id = 'both_cc_limited_ss_44055'
-        subjects = experiments_baseline_portinight(worker_id, args.dataset_path)
+        subjects = experiments_baseline_portinight(
+            worker_id, args.dataset_path)
         unique_id = f"{int(time.time())}"[5:]
         net, run = load_model_mass(
             f"Loading_subjects_{worker_id}_{unique_id}", run_id=run_id, group_name='ModelLoaders')
