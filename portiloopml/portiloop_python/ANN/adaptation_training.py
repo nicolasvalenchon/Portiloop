@@ -1051,14 +1051,16 @@ def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sam
         'fn': fn,
     }
 
-    # if data is not None:
-    #     # Compute the average RMs score for all the spindles
-    #     print(f"We have {len(onsets_preds)} spindles")
-    #     rms_scores = RMS_score_all(data, onsets_preds)
-    #     rms_scores = np.array(rms_scores)
-    #     rms_score = np.mean(rms_scores)
-    #     metrics['rms_score'] = rms_score
-    #     metrics['rms_scores'] = rms_scores
+    if data is not None:
+        # Compute the average RMs score for all the spindles
+        print(f"We have {len(onsets_preds)} spindles")
+        rms_scores = RMS_score_all(data, onsets_preds)
+        rms_scores = np.array(rms_scores)
+        # Remove the NaNs 
+        rms_scores = rms_scores[~np.isnan(rms_scores)]
+        rms_score = np.mean(rms_scores)
+        metrics['avg_rms_score'] = rms_score
+        metrics['rms_scores'] = rms_scores
 
     # Remove all spindles that are in wrong sleep stages
     if ss_labels is not None:
@@ -1383,7 +1385,17 @@ def experiment_subject_portinight(index, dataset_path):
     return subjects
 
 
-def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_name_val, worker_id):
+def experiments_baseline_portinight(index, dataset_path):
+    with open(os.path.join(dataset_path, 'subjects_portinight.txt'), 'r') as f:
+        all_subjects = f.readlines()
+    print(len(all_subjects))
+    subject = all_subjects[index].strip()
+    subjects = [subject]
+
+    return subjects
+
+
+def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_name_val, worker_id, added_text=''):
     results = {}
 
     # print(f"Doing subjects: {subjects}")
@@ -1449,7 +1461,7 @@ def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_
             print(f"FINISHED RUN")
 
     # Save the results to json file with indentation
-    with open(f'experiment_result_worker{worker_id}.json', 'w') as f:
+    with open(f'experiment_result{added_text}_worker{worker_id}.json', 'w') as f:
         json.dump(results, f, indent=4, cls=NumpyEncoder)
 
 
@@ -1535,8 +1547,8 @@ def parse_config():
                         help='Total number of workers used to compute which subjects to run')
     parser.add_argument('--fold', type=int, default=4,
                         help='Fold of the cross validation')
-    parser.add_argument('--mass', type=int, default=0,
-                        help='Choose whether to run the MASS experiments or the Portinight experiments. 1 for MASS, 0 for Portinight')
+    parser.add_argument('--mass', type=int, default=2,
+                        help='Choose whether to run the MASS experiments or the Portinight experiments. 1 for MASS, 0 for Portinight, 2 for baseline experiment')
     args = parser.parse_args()
 
     return args
@@ -1563,11 +1575,8 @@ if __name__ == "__main__":
 
     ##########################
 
-    # Check which type of experiment we want to run
-    mass = args.mass == 1
-
     # Load subjects and configs for this worker
-    if mass:
+    if args.mass == 1:
         if fold == -1:
             # run_id = 'both_cc_olddl_lac_newdropout_32142'
             run_id = 'both_cc_limited_ss_44055'
@@ -1596,6 +1605,18 @@ if __name__ == "__main__":
 
         launch_experiment_mass(subjects, all_configs, run_id,
                                wandb_group_name, wandb_experiment_name, fold, worker_id)
+    elif args.mass == 2:
+        # We do the baseline portinight experiments: 
+        run_id = 'both_cc_limited_ss_44055'
+        subjects = experiments_baseline_portinight(worker_id, args.dataset_path)
+        unique_id = f"{int(time.time())}"[5:]
+        net, run = load_model_mass(
+            f"Loading_subjects_{worker_id}_{unique_id}", run_id=run_id, group_name='ModelLoaders')
+        run.finish()
+        all_configs = [get_config_portinight(i, net) for i in [0, 1]]
+
+        launch_experiment_portinight(
+            subjects, all_configs, run_id, wandb_group_name, wandb_experiment_name, worker_id, added_text='baseline')
     else:
         run_id = 'both_cc_limited_ss_44055'
         subjects = experiment_subject_portinight(worker_id, args.dataset_path)
