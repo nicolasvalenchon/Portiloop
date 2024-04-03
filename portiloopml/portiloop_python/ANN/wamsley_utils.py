@@ -1,6 +1,6 @@
 import copy
 import numpy as np
-from scipy.signal import fftconvolve, filtfilt, firwin, kaiserord, kaiser_atten, kaiser_beta
+from scipy.signal import fftconvolve, butter, sosfiltfilt, firwin, kaiserord, kaiser_atten, kaiser_beta
 import torch
 from tqdm import tqdm
 from wonambi.detect.spindle import DetectSpindle, detect_Lacourse2018
@@ -475,9 +475,13 @@ def filter_signal_for_RMS(signal, Fs=250, lowcut=11, highcut=16):
     atten = kaiser_atten(ntaps, width/nyq)
     beta = kaiser_beta(atten)
     a = 1.0
-    taps = firwin(ntaps, [lowcut, highcut], nyq=nyq,
-                  pass_zero=False, window=('kaiser', beta), scale=False)
-    filtered_signal = torch.tensor(filtfilt(taps, a, signal).copy())
+    order = 4
+    # taps = firwin(ntaps, [lowcut, highcut], nyq=nyq,
+    #               pass_zero=False, window=('kaiser', beta), scale=False)
+
+    sos = butter(N=order, Wn=[lowcut, highcut], btype='bandpass', fs=Fs, output='sos')
+
+    filtered_signal = sosfiltfilt(sos, signal)
     return filtered_signal
 
 def get_RMS_score(filtered_signal, index, Fs=250):
@@ -490,8 +494,8 @@ def get_RMS_score(filtered_signal, index, Fs=250):
     detection = filtered_signal[detect_index:detect_index + size_window]
 
     # Calculate the RMS
-    baseline_rms = torch.sqrt(torch.mean(torch.square(baseline)))
-    detection_rms = torch.sqrt(torch.mean(torch.square(detection)))
+    baseline_rms = np.sqrt(np.mean(np.square(baseline)))
+    detection_rms = np.sqrt(np.mean(np.square(detection)))
 
     score = detection_rms / baseline_rms
     return score
