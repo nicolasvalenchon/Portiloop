@@ -468,12 +468,12 @@ def smooth(data, dur, s_freq):
 
 def filter_signal_for_RMS(signal, filter_order=4, Fs=250, lowcut=11, highcut=16):
     # Filter the signal
-    stopbbanAtt = 60  # stopband attenuation of 60 dB.
-    width = .5  # This sets the cutoff width in Hertz
-    nyq = 0.5 * Fs
-    ntaps, _ = kaiserord(stopbbanAtt, width/nyq)
-    atten = kaiser_atten(ntaps, width/nyq)
-    beta = kaiser_beta(atten)
+    # stopbbanAtt = 60  # stopband attenuation of 60 dB.
+    # width = .5  # This sets the cutoff width in Hertz
+    # nyq = 0.5 * Fs
+    # ntaps, _ = kaiserord(stopbbanAtt, width/nyq)
+    # atten = kaiser_atten(ntaps, width/nyq)
+    # beta = kaiser_beta(atten)
     a = 1.0
     order = filter_order
     # taps = firwin(ntaps, [lowcut, highcut], nyq=nyq,

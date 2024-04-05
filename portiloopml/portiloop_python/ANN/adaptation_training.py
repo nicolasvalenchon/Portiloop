@@ -1583,7 +1583,7 @@ def parse_config():
                         help='Total number of workers used to compute which subjects to run')
     parser.add_argument('--fold', type=int, default=4,
                         help='Fold of the cross validation')
-    parser.add_argument('--mass', type=int, default=4,
+    parser.add_argument('--mass', type=int, default=2,
                         help='Choose whether to run the MASS experiments or the Portinight experiments. 1 for MASS, 0 for Portinight, 2 for baseline, 4 for catastrophic forgetting')
     args = parser.parse_args()
 
