@@ -1683,7 +1683,7 @@ if __name__ == "__main__":
         all_configs = [get_config_portinight(i, net) for i in [2, 3, 4, 5]]
 
         launch_experiment_portinight(
-            subjects, all_configs, run_id, wandb_group_name, wandb_experiment_name, worker_id, added_text='overfitting')
+            subjects, all_configs, run_id, wandb_group_name, wandb_experiment_name, worker_id, added_text='samesubject')
     elif args.mass == 4:
         # We do the overfitting experiments over six nights
         run_id = 'both_cc_limited_ss_44055'
