@@ -1043,8 +1043,12 @@ def spindle_metrics(labels, preds, data=None, N23sleep_in_minutes=None, ss_label
 
     if N23sleep_in_minutes is not None:
         metrics['time_N23_minutes'] = N23sleep_in_minutes
-        metrics['spindle_density_labels'] = len(onsets_labels) / N23sleep_in_minutes
-        metrics['spindle_density_preds'] = len(onsets_preds) / N23sleep_in_minutes
+        if N23sleep_in_minutes > 0:
+            metrics['spindle_density_labels'] = len(onsets_labels) / N23sleep_in_minutes
+            metrics['spindle_density_preds'] = len(onsets_preds) / N23sleep_in_minutes
+        else:
+            metrics['spindle_density_labels'] = 0
+            metrics['spindle_density_preds'] = 0
 
     if data is not None:
         # Compute the average RMs score for all the spindles
