@@ -752,20 +752,20 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
     print(f"Online Lacourse got: {online_lacourse_metrics['f1']}")
 
     if config['end_of_night']:
-        adap_dataset.run_spindle_detection(-1, full_night=True)
+        # adap_dataset.run_spindle_detection(-1, full_night=True)
 
-        # Compute the metrics for the online Lacourse
-        true_labels = torch.tensor(adap_dataset.spindle_labels)
-        endofnight_lacourse_preds = adap_dataset.get_lacourse_spindle_vector()
-        endofnight_lacourse_metrics = spindle_metrics(
-            true_labels,
-            endofnight_lacourse_preds,
-            threshold=0.5,
-            sampling_rate=250,
-            min_label_time=0.5)
+        # # Compute the metrics for the online Lacourse
+        # true_labels = torch.tensor(adap_dataset.spindle_labels)
+        # endofnight_lacourse_preds = adap_dataset.get_lacourse_spindle_vector()
+        # endofnight_lacourse_metrics = spindle_metrics(
+        #     true_labels,
+        #     endofnight_lacourse_preds,
+        #     threshold=0.5,
+        #     sampling_rate=250,
+        #     min_label_time=0.5)
 
-        print(
-            f"End of night Lacourse got: {endofnight_lacourse_metrics['f1']}")
+        # print(
+        #     f"End of night Lacourse got: {endofnight_lacourse_metrics['f1']}")
 
         net_inference = train_adaptation(
             config,
