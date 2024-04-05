@@ -82,7 +82,7 @@ def binary_f1_score(baseline_index, model_index, sampling_rate=250, min_time_pos
     if len(baseline_index) == 0 or len(model_index) == 0:
         return 0, 0, 0, tp, fp, fn, closest
 
-    for index in tqdm(baseline_index):
+    for index in baseline_index:
         # How many in model are within a threshold distance of the baseline
         similarity = len(np.where(np.abs(model_index - index) < threshold)[0])
         closest.append(np.min(np.abs(model_index - index)))
@@ -466,7 +466,7 @@ def smooth(data, dur, s_freq):
 #     score = detection_rms / baseline_rms
 #     return score
 
-def filter_signal_for_RMS(signal, filter_order=4, Fs=250, lowcut=11, highcut=16):
+def filter_signal_for_RMS(signal, filter_order=40, Fs=250, lowcut=11, highcut=16):
     # Filter the signal
     # stopbbanAtt = 60  # stopband attenuation of 60 dB.
     # width = .5  # This sets the cutoff width in Hertz
@@ -503,7 +503,7 @@ def get_RMS_score(filtered_signal, index, Fs=250):
     return score
 
 
-def RMS_score_all(signal, indexes, filter_order=4):
+def RMS_score_all(signal, indexes, filter_order=40):
     filtered_signal = filter_signal_for_RMS(signal, filter_order=filter_order)
     scores = []
     for index in indexes:

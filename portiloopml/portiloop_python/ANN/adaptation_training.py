@@ -407,7 +407,7 @@ class AdaptationDataset(torch.utils.data.Dataset):
             self.last_wamsley_run = 0
             return new_samples
 
-        return 0
+        return -1
 
     def run_spindle_detection(self, detect_len, full_night=False):
 
@@ -572,6 +572,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
     # Keep the sleep staging labels and predictions
     used_threshold = last_used_threshold
     used_thresholds = [used_threshold]
+    num_spindles_seen = [0]
     spindle_pred_with_thresh = []
 
     last_n_ss = deque(maxlen=config['n_ss_smoothing'])
@@ -641,34 +642,34 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
             out_dataset = new_samples > 0
 
         # If we have just added some new data, we log the metrics
-        if out_dataset or index == len(dataloader) - 1:
-            metrics, ss_metrics = adap_dataset.run_metrics()
-            logger.log({'adap_online_f1': metrics['f1']}, step=index)
-            logger.log(
-                {'adap_online_precision': metrics['precision']}, step=index)
-            logger.log({'adap_online_recall': metrics['recall']}, step=index)
+        # if out_dataset or index == len(dataloader) - 1:
+        #     metrics, ss_metrics = adap_dataset.run_metrics()
+        #     logger.log({'adap_online_f1': metrics['f1']}, step=index)
+        #     logger.log(
+        #         {'adap_online_precision': metrics['precision']}, step=index)
+        #     logger.log({'adap_online_recall': metrics['recall']}, step=index)
 
-            # Get the Confusion matrix
-            tp = metrics['tp']
-            fp = metrics['fp']
-            fn = metrics['fn']
-            tn = len(adap_dataset.spindle_labels) - tp - fp - fn
-            cm = np.array([[tn, fp], [fn, tp]])
+        #     # Get the Confusion matrix
+        #     tp = metrics['tp']
+        #     fp = metrics['fp']
+        #     fn = metrics['fn']
+        #     tn = len(adap_dataset.spindle_labels) - tp - fp - fn
+        #     cm = np.array([[tn, fp], [fn, tp]])
 
-            # Create a matplotlib figure for the confusion matrix
-            disp = ConfusionMatrixDisplay(confusion_matrix=cm,
-                                          display_labels=['non-spindle', 'spindle'])
-            disp.plot()
-            logger.log(
-                {
-                    'adap_online_cm': plt,
-                },
-                commit=False,
-                step=index,
-            )
+        #     # Create a matplotlib figure for the confusion matrix
+        #     disp = ConfusionMatrixDisplay(confusion_matrix=cm,
+        #                                   display_labels=['non-spindle', 'spindle'])
+        #     disp.plot()
+        #     logger.log(
+        #         {
+        #             'adap_online_cm': plt,
+        #         },
+        #         commit=False,
+        #         step=index,
+        #     )
 
-            ss_metrics = ss_metrics[0]
-            logger.log({'adap_ss_metrics': ss_metrics['accuracy']}, step=index)
+        #     ss_metrics = ss_metrics[0]
+        #     logger.log({'adap_ss_metrics': ss_metrics['accuracy']}, step=index)
 
         # Used for testing online Lacourse
         # if out_dataset:
@@ -722,8 +723,18 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
 
                 if config['adapt_threshold_detect']:
                     used_threshold = new_thresh
+        
+        if new_samples >= 0:
             used_thresholds.append(used_threshold)
 
+            # Get the number of spindles in our SLA7 estimation so far
+            spindle_preds_SLA7_sofar = torch.tensor(
+                adap_dataset.get_lacourse_spindle_vector()).type(torch.LongTensor)
+            num_spindles = len(get_spindle_onsets(
+                spindle_preds_SLA7_sofar, sampling_rate=250, min_label_time=0.5))
+            num_spindles_seen.append(num_spindles)
+
+        # Get the number of spindles found so far
         if (out_dataset or index == 0 or index == len(dataloader) - 1) and config['val']:
             validate_adaptation(
                 config,
@@ -734,10 +745,8 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
                 used_threshold,
                 index)
 
-    print('BEFORE SPINDLE DETECT END')
     # Run one last time the online spindle detection
     adap_dataset.run_spindle_detection(adap_dataset.last_wamsley_run)
-    print('AFTER SPINDLE DETECTION')
 
     # Compute the metrics for the online Lacourse
     true_labels = torch.tensor(adap_dataset.spindle_labels)
@@ -749,24 +758,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         sampling_rate=250,
         min_label_time=0.5)
 
-    print(f"Online Lacourse got: {online_lacourse_metrics['f1']}")
-
     if config['end_of_night']:
-        # adap_dataset.run_spindle_detection(-1, full_night=True)
-
-        # # Compute the metrics for the online Lacourse
-        # true_labels = torch.tensor(adap_dataset.spindle_labels)
-        # endofnight_lacourse_preds = adap_dataset.get_lacourse_spindle_vector()
-        # endofnight_lacourse_metrics = spindle_metrics(
-        #     true_labels,
-        #     endofnight_lacourse_preds,
-        #     threshold=0.5,
-        #     sampling_rate=250,
-        #     min_label_time=0.5)
-
-        # print(
-        #     f"End of night Lacourse got: {endofnight_lacourse_metrics['f1']}")
-
         net_inference = train_adaptation(
             config,
             adap_dataset,
@@ -779,8 +771,6 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
             epochs=1
         )
 
-    print(f"BFORE SS METRICS")
-
     # Sleep staging metrics:
     ss_preds = adap_dataset.ss_pred_buffer
     ss_labels = adap_dataset.ss_label_buffer
@@ -789,10 +779,6 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
     ss_metrics = staging_metrics(
         ss_labels,
         ss_preds)
-
-    print(f"AFTER SS METRICS")
-
-    print("BEFORE SPINDLE METRICS")
 
     # Compute the real_life metrics for spindle detection
     spindle_preds_real = torch.tensor(
@@ -803,6 +789,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         spindle_labels,
         spindle_preds_real,
         data=adap_dataset.wamsley_buffer,
+        N23sleep_in_minutes = ss_metrics[2],
         ss_labels=adap_dataset.ss_label_buffer if config['use_ss_label'] else adap_dataset.ss_pred_buffer,
         threshold=0.5,
         sampling_rate=250,
@@ -821,8 +808,6 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         sampling_rate=250,
         min_label_time=0.5)
 
-    print("AFTER SPINDLE METRICS")
-
     all_metrics = {
         # Metrics of the sleep staging
         'ss_metrics': ss_metrics[0],
@@ -833,6 +818,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
         # Metrics of the online wamsley spindle detection
         'online_lacourse_metrics': online_lacourse_metrics,
         'threshold_metrics': used_thresholds,
+        'num_spindles_seen': num_spindles_seen
     }
 
     return all_metrics, net_inference
@@ -1030,7 +1016,7 @@ def average_weights(modelA, modelB, alpha=0.5):
     return new_model
 
 
-def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sampling_rate=250, min_label_time=0.5):
+def spindle_metrics(labels, preds, data=None, N23sleep_in_minutes=None, ss_labels=None, threshold=0.5, sampling_rate=250, min_label_time=0.5):
     assert len(labels) == len(
         preds), "Labels and predictions are not the same length"
 
@@ -1045,6 +1031,8 @@ def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sam
         onsets_labels, onsets_preds, sampling_rate=sampling_rate, min_time_positive=min_label_time)
 
     metrics = {
+        'num_spindles_labels': len(onsets_labels),
+        'num_spindles_preds': len(onsets_preds),
         'precision': precision,
         'recall': recall,
         'f1': f1,
@@ -1052,6 +1040,11 @@ def spindle_metrics(labels, preds, data=None, ss_labels=None, threshold=0.5, sam
         'fp': fp,
         'fn': fn,
     }
+
+    if N23sleep_in_minutes is not None:
+        metrics['time_N23_minutes'] = N23sleep_in_minutes
+        metrics['spindle_density_labels'] = len(onsets_labels) / N23sleep_in_minutes
+        metrics['spindle_density_preds'] = len(onsets_preds) / N23sleep_in_minutes
 
     if data is not None:
         # Compute the average RMs score for all the spindles
@@ -1161,6 +1154,9 @@ def staging_metrics(labels, preds):
     ss_labels = labels[mask].type(torch.IntTensor)
     ss_preds = ss_preds_all[mask].type(torch.IntTensor)
 
+    # Count the number of positive predictions (N2-N3)
+    num_n23_minutes = ss_preds_all[ss_preds_all == 1].shape[0] / 250 / 60
+
     # Compute the metrics for sleep staging using sklearn classification report
     report_ss = classification_report(
         ss_labels,
@@ -1175,7 +1171,7 @@ def staging_metrics(labels, preds):
         labels=[0, 1, 2, 3, 4],
     )
 
-    return report_ss, cm, ss_preds_all
+    return report_ss, cm, num_n23_minutes
 
 
 def parse_worker_subject_div(subjects, total_workers, worker_id):
@@ -1223,7 +1219,7 @@ def dataloader_from_subject(subject, dataset_path, config, val):
             dataset,
             seq_stride=config['seq_stride'],
             segment_len=(len(dataset) // config['seq_stride']) - 1,
-            # segment_len=50000,
+            # segment_len=25000,
             max_batch_size=1,
             random=False,
         )
@@ -1288,7 +1284,7 @@ def get_config_portinight(index, net):
         # Thresholds for the adaptable threshold
         'min_threshold': 0.0,
         'max_threshold': 1.0,
-        'starting_threshold': 0.5,
+        'starting_threshold': 0.82,
         # Interval between each run of online wamsley, threshold adaptation and finetuning if required (in minutes)
         'adaptation_interval': 60,
         # Weights for the sampling of the different spindle in the finetuning in order: [fn, tp, fp, tn]
@@ -1426,6 +1422,32 @@ def experiment_subjects_overfitting(index, dataset_path):
 
     return subjects
 
+def experiment_subjects_overfitting_samesubjects(index, dataset_path):
+    # Here, we want to generate a sequence of six subjects, making sure that all subjects are sampled at least once in each position
+    with open(os.path.join(dataset_path, 'subjects_portinight.txt'), 'r') as f:
+        all_subjects = f.readlines()
+
+    all_subjects = [x.strip() for x in all_subjects]
+
+    # Split all nights that have the same subject based on the first 5 characters
+    subjects_dict = {}
+    for subject in all_subjects:
+        subject_id = subject[:5]
+        if subject_id not in subjects_dict:
+            subjects_dict[subject_id] = []
+        subjects_dict[subject_id].append(subject)
+
+    # Keep only the subjects that have at least 5 nights
+    subjects_dict = {k: v for k, v in subjects_dict.items() if len(v) >= 5}
+
+    # Assumes a single digit number of subjects
+    my_subject = list(subjects_dict.keys())[index]
+    subjects = subjects_dict[my_subject][:5]
+    # Order the subjects based on the night number
+    subjects = sorted(subjects, key=lambda x: x[-1])
+
+    return subjects
+
 
 def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_name_val, worker_id, added_text=''):
     results = {}
@@ -1477,8 +1499,6 @@ def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_
 
             last_used_threshold = metrics['threshold_metrics'][-1]
 
-            print("OUT OF RUN ADAPT")
-
             results[subject_id][config['experiment_name']] = {
                 'config': copy.deepcopy(config),
                 'metrics': metrics
@@ -1488,13 +1508,9 @@ def launch_experiment_portinight(subjects, all_configs, run_id, group_name, exp_
             with open(f'results_{exp_name_val}.json', 'w') as f:
                 json.dump(results, f, indent=4, cls=NumpyEncoder)
 
-            print(f"SAVED FILE")
-
             # Save the results to wandb as well
             run.save(f'results_{exp_name_val}.json')
             run.finish()
-
-            print(f"FINISHED RUN")
 
     # Save the results to json file with indentation
     with open(f'experiment_result{added_text}_worker{worker_id}.json', 'w') as f:
@@ -1575,7 +1591,7 @@ def parse_config():
                         default=None, help='Name of the model')
     parser.add_argument('--seed', type=int, default=40,
                         help='Seed for the experiment')
-    parser.add_argument('--worker_id', type=int, default=12,
+    parser.add_argument('--worker_id', type=int, default=0,
                         help='Id of the worker')
     parser.add_argument('--job_id', type=int, default=0,
                         help='Id of the job used for the output file naming scheme')
@@ -1583,7 +1599,7 @@ def parse_config():
                         help='Total number of workers used to compute which subjects to run')
     parser.add_argument('--fold', type=int, default=4,
                         help='Fold of the cross validation')
-    parser.add_argument('--mass', type=int, default=2,
+    parser.add_argument('--mass', type=int, default=3,
                         help='Choose whether to run the MASS experiments or the Portinight experiments. 1 for MASS, 0 for Portinight, 2 for baseline, 4 for catastrophic forgetting')
     args = parser.parse_args()
 
@@ -1656,8 +1672,18 @@ if __name__ == "__main__":
             subjects, all_configs, run_id, wandb_group_name, wandb_experiment_name, worker_id, added_text='baseline')
 
     elif args.mass == 3:
-        # We do the sequential experiment to see if both is better than AdaThresh
-        pass
+        # We do the overfitting experiments once for each subjects over 5 nights
+        run_id = 'both_cc_limited_ss_44055'
+        subjects = experiment_subjects_overfitting_samesubjects(
+            worker_id, args.dataset_path)
+        unique_id = f"{int(time.time())}"[5:]
+        net, run = load_model_mass(
+            f"Loading_subjects_{worker_id}_{unique_id}", run_id=run_id, group_name='ModelLoaders')
+        run.finish()
+        all_configs = [get_config_portinight(i, net) for i in [2, 3, 4, 5]]
+
+        launch_experiment_portinight(
+            subjects, all_configs, run_id, wandb_group_name, wandb_experiment_name, worker_id, added_text='overfitting')
     elif args.mass == 4:
         # We do the overfitting experiments over six nights
         run_id = 'both_cc_limited_ss_44055'

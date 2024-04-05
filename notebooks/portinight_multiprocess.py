@@ -223,9 +223,9 @@ def process_file(file, path, age, gender, data_dict):
     }
 
 
-path = '/project/portinight-raw/PN_08_AC/'
+path = '/project/portinight-raw/PN_02_MS/'
 save_path = '/project/portinight-dataset/'
-subject_id = 'PN_08_AC'
+subject_id = 'PN_02_MS'
 age = 25
 gender = 'F'
 
