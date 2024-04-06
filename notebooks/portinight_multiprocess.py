@@ -4,6 +4,7 @@ import numpy as np
 from multiprocessing import Process, Manager
 from scipy.signal import firwin
 from tqdm import tqdm
+from portiloopml.portiloop_python.ANN.wamsley_utils import detect_lacourse
 
 
 def shift_numpy(arr, num, fill_value=np.nan):
@@ -164,7 +165,11 @@ def raw2filtered(raw):
     print(f'Detrending Data')
     detrended_data = online_detrend(np.array(filtered4lac).flatten())
 
-    print(f"Running Lacourse")
+    # count the number of NaNs in the detrended data
+    nans = np.sum(np.isnan(detrended_data))
+    print(f'Number of NaNs in the detrended data: {nans}')
+
+    # print(f"Running Lacourse")
     # data_detect = np.array(detrended_data)
     # mask = np.ones(len(data_detect), dtype=bool)
     # lacourse = detect_lacourse(
@@ -172,6 +177,11 @@ def raw2filtered(raw):
     #     mask,
     #     sampling_rate=250,
     # )
+
+    # nans = np.sum(np.isnan(detrended_data))
+    # print(f'######Number of NaNs in the detrended data After Lacourse: {nans}')
+
+    # print(f"########Lacourse found {len(lacourse)} spindles")
     lacourse = []
 
     # if len(lacourse) == 0:
@@ -223,9 +233,9 @@ def process_file(file, path, age, gender, data_dict):
     }
 
 
-path = '/project/portinight-raw/PN_02_MS/'
+path = '/project/portinight-raw/PN_07_CB/'
 save_path = '/project/portinight-dataset/'
-subject_id = 'PN_02_MS'
+subject_id = 'PN_07_CB'
 age = 25
 gender = 'F'
 

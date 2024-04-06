@@ -1,6 +1,6 @@
 import copy
 import numpy as np
-from scipy.signal import fftconvolve, butter, sosfiltfilt, firwin, kaiserord, kaiser_atten, kaiser_beta
+from scipy.signal import fftconvolve, butter, sosfiltfilt, filtfilt, firwin, kaiserord, kaiser_atten, kaiser_beta
 import torch
 from tqdm import tqdm
 from wonambi.detect.spindle import DetectSpindle, detect_Lacourse2018
@@ -466,21 +466,14 @@ def smooth(data, dur, s_freq):
 #     score = detection_rms / baseline_rms
 #     return score
 
-def filter_signal_for_RMS(signal, filter_order=40, Fs=250, lowcut=11, highcut=16):
+def filter_signal_for_RMS(signal, filter_order=249, Fs=250, lowcut=11, highcut=16):
     # Filter the signal
-    # stopbbanAtt = 60  # stopband attenuation of 60 dB.
-    # width = .5  # This sets the cutoff width in Hertz
-    # nyq = 0.5 * Fs
-    # ntaps, _ = kaiserord(stopbbanAtt, width/nyq)
-    # atten = kaiser_atten(ntaps, width/nyq)
-    # beta = kaiser_beta(atten)
-    a = 1.0
+    nyq = 0.5 * Fs
+    lowcut = lowcut / nyq
+    highcut = highcut / nyq
     order = filter_order
-    # taps = firwin(ntaps, [lowcut, highcut], nyq=nyq,
-    #               pass_zero=False, window=('kaiser', beta), scale=False)
 
-    sos = butter(N=order, Wn=[lowcut, highcut],
-                 btype='bandpass', fs=Fs, output='sos')
+    sos = butter(order, [lowcut, highcut], btype='band', output='sos')
 
     filtered_signal = sosfiltfilt(sos, signal)
     return filtered_signal
@@ -499,12 +492,22 @@ def get_RMS_score(filtered_signal, index, Fs=250):
     baseline_rms = np.sqrt(np.mean(np.square(baseline)))
     detection_rms = np.sqrt(np.mean(np.square(detection)))
 
-    score = detection_rms / baseline_rms
+    if baseline_rms == 0:
+        score = 10
+        print("Got a 0")
+    else:
+        score = detection_rms / baseline_rms
+
     return score
 
 
-def RMS_score_all(signal, indexes, filter_order=40):
+def RMS_score_all(signal, indexes, filter_order=249):
+
+    # Count the number of NaNs in the signal 
+    nans = np.sum(np.isnan(signal))
+
     filtered_signal = filter_signal_for_RMS(signal, filter_order=filter_order)
+
     scores = []
     for index in indexes:
         score = get_RMS_score(filtered_signal, index)

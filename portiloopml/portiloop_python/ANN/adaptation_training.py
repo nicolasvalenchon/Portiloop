@@ -721,7 +721,7 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
             if new_thresh is not None:
                 logger.log({'best_threshold': new_thresh}, step=index)
 
-                if config['adapt_threshold_detect']:
+                if config['adapt_threshold_detect'] and new_thresh >= 0.5:
                     used_threshold = new_thresh
         
         if new_samples >= 0:
@@ -1052,6 +1052,8 @@ def spindle_metrics(labels, preds, data=None, N23sleep_in_minutes=None, ss_label
 
     if data is not None:
         # Compute the average RMs score for all the spindles
+        # Check if we some NaNs in the data
+
         print(f"We have {len(onsets_preds)} spindles")
         rms_scores = RMS_score_all(data, onsets_preds)
         rms_scores = np.array(rms_scores)
@@ -1209,6 +1211,11 @@ def dataloader_from_subject(subject, dataset_path, config, val):
         wamsley_config=config['wamsley_config'],
         train_all_ss=config['train_all_ss'],
     )
+
+    # check that we have no NaNs in out signal
+    if np.isnan(dataset.data[subject[0]]['signal']).any():
+        print(f"Subject {subject} has NaNs in the signal")
+        return None
 
     if val:
         sampler = MassConsecutiveSampler(
@@ -1595,7 +1602,7 @@ def parse_config():
                         default=None, help='Name of the model')
     parser.add_argument('--seed', type=int, default=40,
                         help='Seed for the experiment')
-    parser.add_argument('--worker_id', type=int, default=0,
+    parser.add_argument('--worker_id', type=int, default=13,
                         help='Id of the worker')
     parser.add_argument('--job_id', type=int, default=0,
                         help='Id of the job used for the output file naming scheme')
@@ -1603,7 +1610,7 @@ def parse_config():
                         help='Total number of workers used to compute which subjects to run')
     parser.add_argument('--fold', type=int, default=4,
                         help='Fold of the cross validation')
-    parser.add_argument('--mass', type=int, default=3,
+    parser.add_argument('--mass', type=int, default=2,
                         help='Choose whether to run the MASS experiments or the Portinight experiments. 1 for MASS, 0 for Portinight, 2 for baseline, 4 for catastrophic forgetting')
     args = parser.parse_args()
 
