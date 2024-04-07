@@ -165,6 +165,9 @@ def raw2filtered(raw):
     print(f'Detrending Data')
     detrended_data = online_detrend(np.array(filtered4lac).flatten())
 
+    # Remove all values where tha absolute value is above 500
+    detrended_data[np.abs(detrended_data) > 500] = 0
+
     # count the number of NaNs in the detrended data
     nans = np.sum(np.isnan(detrended_data))
     print(f'Number of NaNs in the detrended data: {nans}')
@@ -233,32 +236,47 @@ def process_file(file, path, age, gender, data_dict):
     }
 
 
-path = '/project/portinight-raw/PN_07_CB/'
-save_path = '/project/portinight-dataset/'
-subject_id = 'PN_07_CB'
-age = 25
-gender = 'F'
+def do_one_subject(path, subject_id):
+    save_path = '/project/portinight-dataset/'
+    # subject_id = 'PN_07_CB'
+    age = 25
+    gender = 'F'
 
-# Create a dictionary to hold the processed data
-manager = Manager()
-data_dict = manager.dict()
+    # Create a dictionary to hold the processed data
+    manager = Manager()
+    data_dict = manager.dict()
 
-# Iterate through all the csvs in the folder
-processes = []
-for file in os.listdir(path):
-    if file.endswith(".csv"):
-        print(f"Processing {file}")
-        p = Process(target=process_file, args=(
-            file, path, age, gender, data_dict))
-        processes.append(p)
-        p.start()
+    # Iterate through all the csvs in the folder
+    processes = []
+    for file in os.listdir(path):
+        if file.endswith(".csv"):
+            print(f"Processing {file}")
+            p = Process(target=process_file, args=(
+                file, path, age, gender, data_dict))
+            processes.append(p)
+            p.start()
 
-for p in processes:
-    p.join()
+    for p in processes:
+        p.join()
 
-# Save the collected data
-print(f"Saving {subject_id}.npz")
-np.savez_compressed(os.path.join(
-    save_path, f"{subject_id}.npz"), dict(data_dict))
+    # Save the collected data
+    print(f"Saving {subject_id}.npz")
+    np.savez_compressed(os.path.join(
+        save_path, f"{subject_id}.npz"), dict(data_dict))
 
-print(f"All files processed.")
+    print(f"All files processed.")
+
+if __name__ == "__main__":
+    path = '/project/portinight-raw'
+
+    subjects = os.listdir(path)
+
+    print(f"Processing all subjects: {subjects}")
+
+    # for each subject in path
+    for subject in subjects:
+        if os.path.isdir(os.path.join(path, subject)):
+            print(f"|||||||||||   Processing {subject} ||||||||||||")
+            do_one_subject(os.path.join(path, subject), subject)
+            print(f"|||||||||||   Finished {subject} ||||||||||||")
+    print(f"Finished all subjects")

@@ -594,6 +594,10 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
             window_data = window_data.to(device)
             window_labels = labels['spindle_label'].to(device)
 
+            # Check that the input does not contain any NaNs
+            if torch.isnan(window_data).any():
+                print("Found a NaN in input")
+
             # Get the output of the network
             spindle_output, ss_output, h1, _ = net_inference(
                 window_data, h1)
@@ -602,9 +606,17 @@ def run_adaptation(dataloader, val_dataloader, net, device, config, train, logge
             output = spindle_output.squeeze(-1)
             window_labels = window_labels.float()
 
+            # Check that the output does not contain NaNs
+            if torch.isnan(output).any():
+                print("Found a NaN in output")
+
             # Update the loss
             inf_loss_step = criterion(output, window_labels).mean().item()
             inference_loss.append(inf_loss_step)
+
+            # Check that the loss does not contain NaNs
+            if np.isnan(inf_loss_step):
+                print("Found a NaN in loss")
 
             logger.log({'adap_inference_loss': inf_loss_step}, step=index)
 
@@ -1602,7 +1614,7 @@ def parse_config():
                         default=None, help='Name of the model')
     parser.add_argument('--seed', type=int, default=40,
                         help='Seed for the experiment')
-    parser.add_argument('--worker_id', type=int, default=13,
+    parser.add_argument('--worker_id', type=int, default=9,
                         help='Id of the worker')
     parser.add_argument('--job_id', type=int, default=0,
                         help='Id of the job used for the output file naming scheme')

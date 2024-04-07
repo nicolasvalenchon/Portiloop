@@ -19,7 +19,7 @@ parser.add_argument('--data_path', type=str, help='Path to the data folder',
 args = parser.parse_args()
 data_path = args.data_path
 
-subject = 'PN_06_MAS_Night4'
+subject = 'PN_08_AC_Night5'
  
 # Load the signal using dataset
 dataset = MassDataset(data_path, 30, 30, 30, subjects=[
@@ -43,10 +43,14 @@ stds = []
 # Get the indexes of all the NaNs
 nan_indexes = np.where(np.isnan(signal))[0]
 
+# Count the number of infs
+infs = np.sum(np.isinf(signal))
+print(f'Number of infs in the signal: {infs}')
+
 # Remove the Values above 500 in the signal 
 # signal[np.abs(signal) > 500] = 0
 
-plt.plot(signal[:1000])
+plt.plot(signal[2872800:])
 plt.savefig('test_signal.png')
 
 filtered_signal = filter_signal_for_RMS(signal, filter_order=249)
